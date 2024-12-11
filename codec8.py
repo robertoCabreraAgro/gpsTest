@@ -80,7 +80,7 @@ def insertar_datos_gps(io_dict):
         conn.commit()
         print("Datos insertados correctamente en la base de datos.")
     except Exception as e:
-        print(f"Error al insertar datos en la base de datos: {e}")
+        print(f"")
     finally:
         if cursor:
             cursor.close()
