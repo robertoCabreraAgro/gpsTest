@@ -4,90 +4,88 @@ import os
 import datetime
 import struct
 import decimal
-#import psycopg2
-#from pyproj import Transformer
+import psycopg2
+from pyproj import Transformer
 import threading  # Importamos threading para manejar múltiples hilos
 
 HOST = '0.0.0.0'  # Puede que '0.0.0.0' no funcione en algunos sistemas Linux; cambia a una cadena con la dirección IP, por ejemplo: '192.168.0.1'
 PORT = 5055  # Cambia esto por el puerto que estás utilizando
 
-# def conectar_bd():
-#     return psycopg2.connect(
-#         dbname='test',
-#         user='odoo',
-#         password='odoo123',
-#         host='localhost',
-#         port='5432'
-#     )
+def conectar_bd():
+    return psycopg2.connect(
+        dbname='test',
+        user='odoo',
+        password='odoo123',
+        host='localhost',
+        port='5432'
+    )
 
 def insertar_datos_gps(io_dict):
-    print("Simulación: Datos que se insertarían en la BD:", io_dict)
+    conn = None
+    cursor = None
+    try:
+        conn = conectar_bd()
+        cursor = conn.cursor()
 
-    # conn = None
-    # cursor = None
-    # try:
-    #     conn = conectar_bd()
-    #     cursor = conn.cursor()
+        # Paso 1: Mapear los campos
+        imei = io_dict.get('device_IMEI', '')
+        timestamp_str = io_dict.get('_timestamp_', '')
+        priority = io_dict.get('priority', 0)
+        longitude = io_dict.get('longitude', 0.0)
+        latitude = io_dict.get('latitude', 0.0)
+        altitude = io_dict.get('altitude', 0)
+        angle = io_dict.get('angle', 0)
+        satellites = io_dict.get('satelites', 0)
+        speed = io_dict.get('speed', 0)
+        event_id = io_dict.get('eventID', 0)
 
-    #     # Paso 1: Mapear los campos
-    #     imei = io_dict.get('device_IMEI', '')
-    #     timestamp_str = io_dict.get('_timestamp_', '')
-    #     priority = io_dict.get('priority', 0)
-    #     longitude = io_dict.get('longitude', 0.0)
-    #     latitude = io_dict.get('latitude', 0.0)
-    #     altitude = io_dict.get('altitude', 0)
-    #     angle = io_dict.get('angle', 0)
-    #     satellites = io_dict.get('satelites', 0)
-    #     speed = io_dict.get('speed', 0)
-    #     event_id = io_dict.get('eventID', 0)
+        # Convertir timestamp a objeto datetime
+        try:
+            timestamp_format = "%H:%M:%S %d-%m-%Y"
+            timestamp_local_str = timestamp_str.split(' (')[0]  # Obtener la parte local
+            timestamp = datetime.datetime.strptime(timestamp_local_str, timestamp_format)
+        except Exception as e:
+            print(f"Error al convertir timestamp: {e}")
+            timestamp = datetime.datetime.now()
 
-    #     # Convertir timestamp a objeto datetime
-    #     try:
-    #         timestamp_format = "%H:%M:%S %d-%m-%Y"
-    #         timestamp_local_str = timestamp_str.split(' (')[0]  # Obtener la parte local
-    #         timestamp = datetime.datetime.strptime(timestamp_local_str, timestamp_format)
-    #     except Exception as e:
-    #         print(f"Error al convertir timestamp: {e}")
-    #         timestamp = datetime.datetime.now()
+        # Paso 2: Calcular the_point
+        transformer = Transformer.from_crs(4326, 3857, always_xy=True)
+        x, y = transformer.transform(longitude, latitude)  # Asegúrate del orden correcto (longitud, latitud)
+        the_point = f'POINT({x} {y})'
 
-    #     # Paso 2: Calcular the_point
-    #     transformer = Transformer.from_crs(4326, 3857, always_xy=True)
-    #     x, y = transformer.transform(longitude, latitude)  # Asegúrate del orden correcto (longitud, latitud)
-    #     the_point = f'POINT({x} {y})'
+        # Paso 3: Insertar en la base de datos incluyendo the_point
+        insert_query = """
+        INSERT INTO gps_tracking_data_history (
+            imei, timestamp, priority, altitude, angle, satellites, speed, event_id,
+            latitude, longitude, the_point
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, ST_GeomFromText(%s, 3857))
+        """
 
-    #     # Paso 3: Insertar en la base de datos incluyendo the_point
-    #     insert_query = """
-    #     INSERT INTO gps_tracking_data_history (
-    #         imei, timestamp, priority, altitude, angle, satellites, speed, event_id,
-    #         latitude, longitude, the_point
-    #     )
-    #     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, ST_GeomFromText(%s, 3857))
-    #     """
+        values = (
+            imei,
+            timestamp,
+            priority,
+            altitude,
+            angle,
+            satellites,
+            speed,
+            event_id,
+            latitude,
+            longitude,
+            the_point
+        )
 
-    #     values = (
-    #         imei,
-    #         timestamp,
-    #         priority,
-    #         altitude,
-    #         angle,
-    #         satellites,
-    #         speed,
-    #         event_id,
-    #         latitude,
-    #         longitude,
-    #         the_point
-    #     )
-
-    #     cursor.execute(insert_query, values)
-    #     conn.commit()
-    #     print("Datos insertados correctamente en la base de datos.")
-    # except Exception as e:
-    #     print(f"")
-    # finally:
-    #     if cursor:
-    #         cursor.close()
-    #     if conn:
-    #         conn.close()
+        cursor.execute(insert_query, values)
+        conn.commit()
+        print("Datos insertados correctamente en la base de datos.")
+    except Exception as e:
+        print(f"")
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 def input_trigger():  # Espera la entrada del usuario
     print("Escribe 'SERVER' para iniciar el servidor o:")
@@ -174,7 +172,7 @@ def start_server_trigger():
         print(f"// {time_stamper()} // escuchando en el puerto: {PORT} // IP: {HOST}")
         while True:
             conn, addr = s.accept()
-            conn.settimeout(20)  # Tiempo de espera de la conexión
+            conn.settimeout(60)  # Tiempo de espera de la conexión
             # Iniciar un nuevo hilo para manejar la conexión
             threading.Thread(target=handle_client_connection, args=(conn, addr)).start()
 
