@@ -4,11 +4,11 @@ import os
 import datetime
 import struct
 import decimal
-import psycopg2
-from pyproj import Transformer
+#import psycopg2
+#from pyproj import Transformer
 import threading  # Importamos threading para manejar múltiples hilos
 
-HOST = '0.0.0.0'  # Puede que '0.0.0.0' no funcione en algunos sistemas Linux; cambia a una cadena con la dirección IP, por ejemplo: '192.168.0.1'
+HOST = '34.229.87.213'  # Puede que '0.0.0.0' no funcione en algunos sistemas Linux; cambia a una cadena con la dirección IP, por ejemplo: '192.168.0.1'
 PORT = 5055  # Cambia esto por el puerto que estás utilizando
 
 # def conectar_bd():
