@@ -213,8 +213,8 @@ def handle_client_connection(conn, addr):
 ####################################################
 
 def codec_8e_parser(codec_8E_packet, device_imei, props):
-    print()
-
+    print(f"codec_8E_packet = {codec_8E_packet}")
+    
     io_dict_raw = {}
     io_dict_raw["device_IMEI"] = device_imei
     io_dict_raw["server_time"] = time_stamper_for_json()
