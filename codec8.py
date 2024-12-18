@@ -11,84 +11,12 @@ import threading  # Importamos threading para manejar múltiples hilos
 HOST = '0.0.0.0'  # Puede que '0.0.0.0' no funcione en algunos sistemas Linux; cambia a una cadena con la dirección IP, por ejemplo: '192.168.0.1'
 PORT = 5055  # Cambia esto por el puerto que estás utilizando
 
-# def conectar_bd():
-#     return psycopg2.connect(
-#         dbname='test',
-#         user='odoo',
-#         password='odoo123',
-#         host='localhost',
-#         port='5432'
-#     )
+
 
 def insertar_datos_gps(io_dict):
     print("SimulDatos que se insertarían en la BD:", io_dict)
 
-    # conn = None
-    # cursor = None
-    # try:
-    #     conn = conectar_bd()
-    #     cursor = conn.cursor()
-
-    #     # Paso 1: Mapear los campos
-    #     imei = io_dict.get('device_IMEI', '')
-    #     timestamp_str = io_dict.get('_timestamp_', '')
-    #     priority = io_dict.get('priority', 0)
-    #     longitude = io_dict.get('longitude', 0.0)
-    #     latitude = io_dict.get('latitude', 0.0)
-    #     altitude = io_dict.get('altitude', 0)
-    #     angle = io_dict.get('angle', 0)
-    #     satellites = io_dict.get('satelites', 0)
-    #     speed = io_dict.get('speed', 0)
-    #     event_id = io_dict.get('eventID', 0)
-
-    #     # Convertir timestamp a objeto datetime
-    #     try:
-    #         timestamp_format = "%H:%M:%S %d-%m-%Y"
-    #         timestamp_local_str = timestamp_str.split(' (')[0]  # Obtener la parte local
-    #         timestamp = datetime.datetime.strptime(timestamp_local_str, timestamp_format)
-    #     except Exception as e:
-    #         print(f"Error al convertir timestamp: {e}")
-    #         timestamp = datetime.datetime.now()
-
-    #     # Paso 2: Calcular the_point
-    #     transformer = Transformer.from_crs(4326, 3857, always_xy=True)
-    #     x, y = transformer.transform(longitude, latitude)  # Asegúrate del orden correcto (longitud, latitud)
-    #     the_point = f'POINT({x} {y})'
-
-    #     # Paso 3: Insertar en la base de datos incluyendo the_point
-    #     insert_query = """
-    #     INSERT INTO gps_tracking_data_history (
-    #         imei, timestamp, priority, altitude, angle, satellites, speed, event_id,
-    #         latitude, longitude, the_point
-    #     )
-    #     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, ST_GeomFromText(%s, 3857))
-    #     """
-
-    #     values = (
-    #         imei,
-    #         timestamp,
-    #         priority,
-    #         altitude,
-    #         angle,
-    #         satellites,
-    #         speed,
-    #         event_id,
-    #         latitude,
-    #         longitude,
-    #         the_point
-    #     )
-
-    #     cursor.execute(insert_query, values)
-    #     conn.commit()
-    #     print("Datos insertados correctamente en la base de datos.")
-    # except Exception as e:
-    #     print(f"")
-    # finally:
-    #     if cursor:
-    #         cursor.close()
-    #     if conn:
-    #         conn.close()
-
+   
 def input_trigger():  # Espera la entrada del usuario
     print("Escribe 'SERVER' para iniciar el servidor o:")
     print("Escribe 'EXIT' para detener el programa")
@@ -164,7 +92,11 @@ def imei_checker(hex_imei):  # Función para verificar el IMEI
         return True
 
 def ascii_imei_converter(hex_imei):
-    return bytes.fromhex(hex_imei[4:]).decode()
+    imei_bin=bytes.fromhex(hex_imei[4:])
+    print(f"IMEI imei_bin = {imei_bin}")
+    imei_decode=imei_bin.decode()
+    print(f"IMEI imei_decode = {imei_decode}")
+    return imei_decode
 
 def start_server_trigger():
     print("Iniciando servidor!")
@@ -220,11 +152,6 @@ def codec_8e_parser(codec_8E_packet, device_imei, props):
     io_dict_raw["server_time"] = time_stamper_for_json()
     io_dict_raw["data_length"] = "Record length: " + str(int(len(codec_8E_packet))) + " characters" + " // " + str(int(len(codec_8E_packet) // 2)) + " bytes"
     io_dict_raw["_raw_data__"] = codec_8E_packet
-
-    try:  # Escribir datos RAW en JSON
-        json_printer_rawDATA(io_dict_raw, device_imei)
-    except Exception as e:
-        print(f"Error al escribir datos RAW en JSON: {e}")
 
     zero_bytes = codec_8E_packet[:8]
     print()
@@ -306,113 +233,7 @@ def codec_8e_parser(codec_8E_packet, device_imei, props):
         print(f"total I/O elements in record {record_number} = {total_io_elements_parsed}")
         data_field_position += len(total_io_elements)
 
-        # Procesar IO de 1 byte
-        byte1_io_number = avl_data_start[data_field_position:data_field_position+data_step]
-        byte1_io_number_parsed = int(byte1_io_number, 16)
-        print(f"1 byte io count = {byte1_io_number_parsed}")
-        data_field_position += len(byte1_io_number)
-
-        if byte1_io_number_parsed > 0:
-            i = 1
-            while i <= byte1_io_number_parsed:
-                key = avl_data_start[data_field_position:data_field_position+data_step]
-                data_field_position += len(key)
-                value = avl_data_start[data_field_position:data_field_position+2]
-
-                io_dict[int(key, 16)] = sorting_hat(int(key, 16), value)
-                data_field_position += len(value)
-                print(f"avl_ID: {int(key, 16)} : {io_dict[int(key, 16)]}")
-                i += 1
-        else:
-            pass
-
-        # Procesar IO de 2 bytes
-        byte2_io_number = avl_data_start[data_field_position:data_field_position+data_step]
-        byte2_io_number_parsed = int(byte2_io_number, 16)
-        print(f"2 byte io count = {byte2_io_number_parsed}")
-        data_field_position += len(byte2_io_number)
-
-        if byte2_io_number_parsed > 0:
-            i = 1
-            while i <= byte2_io_number_parsed:
-                key = avl_data_start[data_field_position:data_field_position+data_step]
-                data_field_position += len(key)
-
-                value = avl_data_start[data_field_position:data_field_position+4]
-                io_dict[int(key, 16)] = sorting_hat(int(key, 16), value)
-                data_field_position += len(value)
-                print(f"avl_ID: {int(key, 16)} : {io_dict[int(key, 16)]}")
-                i += 1
-        else:
-            pass
-
-        # Procesar IO de 4 bytes
-        byte4_io_number = avl_data_start[data_field_position:data_field_position+data_step]
-        byte4_io_number_parsed = int(byte4_io_number, 16)
-        print(f"4 byte io count = {byte4_io_number_parsed}")
-        data_field_position += len(byte4_io_number)
-
-        if byte4_io_number_parsed > 0:
-            i = 1
-            while i <= byte4_io_number_parsed:
-                key = avl_data_start[data_field_position:data_field_position+data_step]
-                data_field_position += len(key)
-
-                value = avl_data_start[data_field_position:data_field_position+8]
-                io_dict[int(key, 16)] = sorting_hat(int(key, 16), value)
-                data_field_position += len(value)
-                print(f"avl_ID: {int(key, 16)} : {io_dict[int(key, 16)]}")
-                i += 1
-        else:
-            pass
-
-        # Procesar IO de 8 bytes
-        byte8_io_number = avl_data_start[data_field_position:data_field_position+data_step]
-        byte8_io_number_parsed = int(byte8_io_number, 16)
-        print(f"8 byte io count = {byte8_io_number_parsed}")
-        data_field_position += len(byte8_io_number)
-
-        if byte8_io_number_parsed > 0:
-            i = 1
-            while i <= byte8_io_number_parsed:
-                key = avl_data_start[data_field_position:data_field_position+data_step]
-                data_field_position += len(key)
-
-                value = avl_data_start[data_field_position:data_field_position+16]
-                io_dict[int(key, 16)] = sorting_hat(int(key, 16), value)
-                data_field_position += len(value)
-                print(f"avl_ID: {int(key, 16)} : {io_dict[int(key, 16)]}")
-                i += 1
-        else:
-            pass
-
-        # Si es Codec8E, procesar IO de tamaño variable
-        if codec_type.upper() == "8E":
-            byteX_io_number = avl_data_start[data_field_position:data_field_position+4]
-            byteX_io_number_parsed = int(byteX_io_number, 16)
-            print(f"X byte io count = {byteX_io_number_parsed}")
-            data_field_position += len(byteX_io_number)
-
-            if byteX_io_number_parsed > 0:
-                i = 1
-                while i <= byteX_io_number_parsed:
-                    key = avl_data_start[data_field_position:data_field_position+4]
-                    data_field_position += len(key)
-
-                    value_length = avl_data_start[data_field_position:data_field_position+4]
-                    data_field_position += 4
-                    value = avl_data_start[data_field_position:data_field_position+(2*(int(value_length, 16)))]
-                    io_dict[int(key, 16)] = sorting_hat(int(key, 16), value)
-                    data_field_position += len(value)
-                    print(f"avl_ID: {int(key, 16)} : {io_dict[int(key, 16)]}")
-                    i += 1
-            else:
-                pass
-        else:
-            pass
-
-        try:  # Escribir el diccionario en JSON y guardar en la base de datos
-            json_printer(io_dict, device_imei)
+        try:  
             insertar_datos_gps(io_dict)
         except Exception as e:
             print(f"Error al escribir en JSON o insertar en la base de datos: {e}")
@@ -431,13 +252,6 @@ def codec_8e_parser(codec_8E_packet, device_imei, props):
         print()
         input_trigger()
 
-####################################################
-###############_End_of_MAIN_Parser_Code#############
-####################################################
-
-####################################################
-###############_Coordinates_Function_###############
-####################################################
 
 def coordinate_formater(hex_coordinate):
     coordinate = int(hex_coordinate, 16)
@@ -447,50 +261,6 @@ def coordinate_formater(hex_coordinate):
     else:
         dec_coordinate = coordinate / 1e7
     return dec_coordinate
-
-####################################################
-###############____JSON_Functions____###############
-####################################################
-
-def json_printer(io_dict, device_imei):
-    json_data = json.dumps(io_dict, indent=4)
-    data_path = "./data/" + str(device_imei)
-    json_file = str(device_imei) + "_data.json"
-
-    if not os.path.exists(data_path):
-        os.makedirs(data_path)
-    else:
-        pass
-
-    if not os.path.exists(os.path.join(data_path, json_file)):
-        with open(os.path.join(data_path, json_file), "w") as file:
-            file.write(json_data)
-    else:
-        with open(os.path.join(data_path, json_file), "a") as file:
-            file.write(json_data)
-    return
-
-def json_printer_rawDATA(io_dict_raw, device_imei):
-    json_data = json.dumps(io_dict_raw, indent=4)
-    data_path = "./data/" + str(device_imei)
-    json_file = str(device_imei) + "_RAWdata.json"
-
-    if not os.path.exists(data_path):
-        os.makedirs(data_path)
-    else:
-        pass
-
-    if not os.path.exists(os.path.join(data_path, json_file)):
-        with open(os.path.join(data_path, json_file), "w") as file:
-            file.write(json_data)
-    else:
-        with open(os.path.join(data_path, json_file), "a") as file:
-            file.write(json_data)
-    return
-
-####################################################
-###############____TIME_FUNCTIONS____###############
-####################################################
 
 def time_stamper():
     current_server_time = datetime.datetime.now()
@@ -523,89 +293,9 @@ def record_delay_counter(timestamp):
 ###############_PARSE_FUNCTIONS_CODE_###############
 ####################################################
 
-def parse_data_integer(data):
-    return int(data, 16)
-
-def int_multiply_01(data):
-    return float(decimal.Decimal(int(data, 16)) * decimal.Decimal('0.1'))
-
-def int_multiply_001(data):
-    return float(decimal.Decimal(int(data, 16)) * decimal.Decimal('0.01'))
-
-def int_multiply_0001(data):
-    return float(decimal.Decimal(int(data, 16)) * decimal.Decimal('0.001'))
-
-def signed_no_multiply(data):
-    try:
-        binary = bytes.fromhex(data.zfill(8))
-        value = struct.unpack(">i", binary)[0]
-        return value
-    except Exception as e:
-        print(f"Valor inesperado en la función '{data}', error: '{e}'. Dejaré el valor sin parsear!")
-        return f"0x{data}"
-
-parse_functions_dictionary = {
-    240: parse_data_integer,
-    239: parse_data_integer,
-    80: parse_data_integer,
-    21: parse_data_integer,
-    200: parse_data_integer,
-    69: parse_data_integer,
-    181: int_multiply_01,
-    182: int_multiply_01,
-    66: int_multiply_0001,
-    24: parse_data_integer,
-    205: parse_data_integer,
-    206: parse_data_integer,
-    67: int_multiply_0001,
-    68: int_multiply_0001,
-    241: parse_data_integer,
-    299: parse_data_integer,
-    16: parse_data_integer,
-    1: parse_data_integer,
-    9: parse_data_integer,
-    179: parse_data_integer,
-    12: int_multiply_0001,
-    13: int_multiply_001,
-    17: signed_no_multiply,
-    18: signed_no_multiply,
-    19: signed_no_multiply,
-    11: parse_data_integer,
-    10: parse_data_integer,
-    2: parse_data_integer,
-    3: parse_data_integer,
-    6: int_multiply_0001,
-    180: parse_data_integer
-}
-
-def sorting_hat(key, value):
-    if key in parse_functions_dictionary:
-        parse_function = parse_functions_dictionary[key]
-        return parse_function(value)
-    else:
-        return f"0x{value}"
 
 ####################################################
 
-def fileAccessTest():
-    try:
-        testDict = {}
-        testDict["_Writing_Test_"] = "Writing_Test"
-        testDict["Script_Started"] = time_stamper_for_json()
-
-        json_printer(testDict, "file_Write_Test")
-
-        print(f"---### Prueba de acceso a archivos superada! ###---")
-        input_trigger()
-
-    except Exception as e:
-        print()
-        print(f"---### Error de acceso a archivos ###---")
-        print(f"'{e}'")
-        print(f"---### Intenta ejecutar el terminal con derechos de administrador! ###---")
-        print(f"---### Nada será guardado si decides continuar! ###---")
-        print()
-        input_trigger()
 
 def main():
     # Puedes llamar directamente a start_server_trigger() si ya no necesitas la prueba de acceso a archivos
